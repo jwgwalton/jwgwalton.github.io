@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Comprehensive introduction to transformer architectures and attention mechanisms">
+    <title>Getting Started with Transformer Architectures - AI Engineer Blog</title>
+    <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+    <header class="site-header">
+        <nav class="nav-container">
+            <div class="logo">
+                <a href="../../index.html">AI Engineer</a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html">Home</a></li>
+                <li><a href="../index.html" class="active">Blog</a></li>
+                <li><a href="../../about.html">About</a></li>
+                <li><a href="../../projects.html">Projects</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <article class="post-content">
+            <div class="article-meta">
+                <h1>Getting Started with Transformer Architectures</h1>
+                <div class="post-meta">
+                    <span class="post-date">January 15, 2024</span>
+                    <span class="post-reading-time reading-time">12 min read</span>
+                </div>
+                <div class="post-tags">
+                    <span class="tag">Transformers</span>
+                    <span class="tag">NLP</span>
+                    <span class="tag">Tutorial</span>
+                </div>
+            </div>
+
+            <p>
+                Transformer architectures have revolutionized natural language processing and are now expanding into 
+                computer vision, audio processing, and more. In this comprehensive guide, we'll break down how transformers 
+                work and how to implement them effectively.
+            </p>
+
+            <h2>The Problem Transformers Solve</h2>
+            <p>
+                Before transformers, sequence modeling was dominated by RNNs and LSTMs. While effective, these architectures had 
+                fundamental limitations:
+            </p>
+            <ul>
+                <li><strong>Sequential processing:</strong> Can't parallelize across the sequence</li>
+                <li><strong>Limited context:</strong> Difficulty capturing long-range dependencies</li>
+                <li><strong>Vanishing gradients:</strong> Training instability on long sequences</li>
+            </ul>
+            <p>
+                Transformers address all of these issues through a revolutionary mechanism: <strong>attention</strong>.
+            </p>
+
+            <h2>The Attention Mechanism</h2>
+            <p>
+                At its core, attention allows the model to focus on relevant parts of the input when processing each element. 
+                Think of it like highlighting important words when reading a sentence.
+            </p>
+
+            <h3>Self-Attention in Detail</h3>
+            <p>
+                Self-attention computes three vectors for each token:
+            </p>
+            <ul>
+                <li><strong>Query (Q):</strong> What am I looking for?</li>
+                <li><strong>Key (K):</strong> What do I contain?</li>
+                <li><strong>Value (V):</strong> What information do I represent?</li>
+            </ul>
+
+            <p>The attention formula is elegantly simple:</p>
+            <pre><code>Attention(Q, K, V) = softmax(QK^T / √d_k)V</code></pre>
+
+            <p>Let's implement this in PyTorch:</p>
+            <pre><code>import torch
+import torch.nn as nn
+import math
+
+class SelfAttention(nn.Module):
+    def __init__(self, embed_dim):
+        super().__init__()
+        self.embed_dim = embed_dim
+        
+        # Linear layers to create Q, K, V
+        self.query = nn.Linear(embed_dim, embed_dim)
+        self.key = nn.Linear(embed_dim, embed_dim)
+        self.value = nn.Linear(embed_dim, embed_dim)
+        
+    def forward(self, x):
+        # x shape: (batch, seq_len, embed_dim)
+        Q = self.query(x)
+        K = self.key(x)
+        V = self.value(x)
+        
+        # Compute attention scores
+        scores = torch.matmul(Q, K.transpose(-2, -1))
+        scores = scores / math.sqrt(self.embed_dim)
+        
+        # Apply softmax
+        attention_weights = torch.softmax(scores, dim=-1)
+        
+        # Apply attention to values
+        output = torch.matmul(attention_weights, V)
+        return output</code></pre>
+
+            <h2>Multi-Head Attention</h2>
+            <p>
+                Instead of one attention mechanism, transformers use multiple "heads" that can focus on different aspects:
+            </p>
+            <ul>
+                <li>One head might focus on syntactic relationships</li>
+                <li>Another might capture semantic meaning</li>
+                <li>Others might handle positional or contextual information</li>
+            </ul>
+
+            <pre><code>class MultiHeadAttention(nn.Module):
+    def __init__(self, embed_dim, num_heads):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.head_dim = embed_dim // num_heads
+        
+        self.query = nn.Linear(embed_dim, embed_dim)
+        self.key = nn.Linear(embed_dim, embed_dim)
+        self.value = nn.Linear(embed_dim, embed_dim)
+        self.output = nn.Linear(embed_dim, embed_dim)
+        
+    def forward(self, x):
+        batch_size, seq_len, _ = x.shape
+        
+        # Create Q, K, V and split into heads
+        Q = self.query(x).view(batch_size, seq_len, self.num_heads, self.head_dim)
+        K = self.key(x).view(batch_size, seq_len, self.num_heads, self.head_dim)
+        V = self.value(x).view(batch_size, seq_len, self.num_heads, self.head_dim)
+        
+        # Transpose for attention computation
+        Q = Q.transpose(1, 2)  # (batch, heads, seq_len, head_dim)
+        K = K.transpose(1, 2)
+        V = V.transpose(1, 2)
+        
+        # Compute attention
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.head_dim)
+        attention = torch.softmax(scores, dim=-1)
+        
+        # Apply attention to values
+        out = torch.matmul(attention, V)
+        
+        # Concatenate heads and apply output projection
+        out = out.transpose(1, 2).contiguous().view(batch_size, seq_len, self.embed_dim)
+        return self.output(out)</code></pre>
+
+            <h2>Positional Encoding</h2>
+            <p>
+                Since transformers process all tokens in parallel, they need a way to understand position. 
+                Positional encoding adds position information to the embeddings:
+            </p>
+
+            <pre><code>class PositionalEncoding(nn.Module):
+    def __init__(self, embed_dim, max_len=5000):
+        super().__init__()
+        
+        # Create positional encoding matrix
+        pe = torch.zeros(max_len, embed_dim)
+        position = torch.arange(0, max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, embed_dim, 2) * 
+                           -(math.log(10000.0) / embed_dim))
+        
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        
+        self.register_buffer('pe', pe.unsqueeze(0))
+        
+    def forward(self, x):
+        return x + self.pe[:, :x.size(1)]</code></pre>
+
+            <h2>The Full Transformer Block</h2>
+            <p>
+                A complete transformer encoder block combines:
+            </p>
+            <ol>
+                <li>Multi-head attention</li>
+                <li>Add & Norm (residual connection + layer normalization)</li>
+                <li>Feed-forward network</li>
+                <li>Another Add & Norm</li>
+            </ol>
+
+            <pre><code>class TransformerBlock(nn.Module):
+    def __init__(self, embed_dim, num_heads, ff_dim, dropout=0.1):
+        super().__init__()
+        
+        self.attention = MultiHeadAttention(embed_dim, num_heads)
+        self.norm1 = nn.LayerNorm(embed_dim)
+        self.norm2 = nn.LayerNorm(embed_dim)
+        
+        self.feed_forward = nn.Sequential(
+            nn.Linear(embed_dim, ff_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(ff_dim, embed_dim)
+        )
+        
+        self.dropout = nn.Dropout(dropout)
+        
+    def forward(self, x):
+        # Multi-head attention with residual
+        attn_out = self.attention(x)
+        x = self.norm1(x + self.dropout(attn_out))
+        
+        # Feed-forward with residual
+        ff_out = self.feed_forward(x)
+        x = self.norm2(x + self.dropout(ff_out))
+        
+        return x</code></pre>
+
+            <h2>Training Tips</h2>
+
+            <h3>Learning Rate Scheduling</h3>
+            <p>
+                Transformers benefit from warmup followed by decay:
+            </p>
+            <pre><code>from torch.optim.lr_scheduler import LambdaLR
+
+def get_lr_scheduler(optimizer, warmup_steps, d_model):
+    def lr_lambda(step):
+        step = max(step, 1)
+        return (d_model ** -0.5) * min(step ** -0.5, 
+                                       step * warmup_steps ** -1.5)
+    
+    return LambdaLR(optimizer, lr_lambda)</code></pre>
+
+            <h3>Regularization</h3>
+            <ul>
+                <li><strong>Dropout:</strong> Apply to attention weights and feed-forward outputs</li>
+                <li><strong>Label smoothing:</strong> Prevents overconfidence in predictions</li>
+                <li><strong>Weight decay:</strong> L2 regularization on model parameters</li>
+            </ul>
+
+            <h2>Common Variants</h2>
+
+            <h3>BERT (Bidirectional Encoder)</h3>
+            <p>
+                Uses only the encoder stack, bidirectional attention. Best for:
+            </p>
+            <ul>
+                <li>Text classification</li>
+                <li>Named entity recognition</li>
+                <li>Question answering</li>
+            </ul>
+
+            <h3>GPT (Decoder-only)</h3>
+            <p>
+                Uses causal (left-to-right) attention. Best for:
+            </p>
+            <ul>
+                <li>Text generation</li>
+                <li>Language modeling</li>
+                <li>Few-shot learning</li>
+            </ul>
+
+            <h3>T5 (Encoder-Decoder)</h3>
+            <p>
+                Full transformer architecture. Best for:
+            </p>
+            <ul>
+                <li>Translation</li>
+                <li>Summarization</li>
+                <li>Any sequence-to-sequence task</li>
+            </ul>
+
+            <h2>Practical Considerations</h2>
+
+            <h3>Memory Usage</h3>
+            <p>
+                Attention is O(n²) in sequence length. For long sequences:
+            </p>
+            <ul>
+                <li>Use gradient checkpointing</li>
+                <li>Consider sparse attention patterns (Longformer, BigBird)</li>
+                <li>Implement sliding window attention</li>
+                <li>Use mixed precision training (FP16/BF16)</li>
+            </ul>
+
+            <h3>Optimization</h3>
+            <ul>
+                <li>Use <code>torch.compile()</code> for PyTorch 2.0+</li>
+                <li>Implement FlashAttention for faster training</li>
+                <li>Cache key-value pairs during inference</li>
+            </ul>
+
+            <h2>Getting Started</h2>
+            <p>
+                The best way to learn transformers is to implement them. I recommend:
+            </p>
+            <ol>
+                <li>Start with the code examples above</li>
+                <li>Read the original "Attention is All You Need" paper</li>
+                <li>Experiment with small datasets (like IMDB for sentiment analysis)</li>
+                <li>Use pre-trained models from HuggingFace for real applications</li>
+                <li>Gradually increase complexity as you understand the basics</li>
+            </ol>
+
+            <h2>Conclusion</h2>
+            <p>
+                Transformers have become the foundation of modern AI, and understanding them is essential for any AI engineer. 
+                While the architecture seems complex at first, it's built on simple, elegant ideas: attention, residual connections, 
+                and layer normalization.
+            </p>
+            <p>
+                Start small, experiment often, and don't be afraid to implement things from scratch. The best way to understand 
+                transformers is to build them yourself!
+            </p>
+
+            <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border);">
+                <a href="../index.html" class="btn btn-outline">← Back to Blog</a>
+            </div>
+        </article>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-links">
+                    <a href="https://github.com/jwgwalton" target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                    <a href="https://twitter.com" target="_blank" rel="noopener noreferrer">Twitter</a>
+                </div>
+                <p>&copy; 2024 AI Engineer Blog. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+</body>
+</html>
